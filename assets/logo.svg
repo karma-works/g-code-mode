@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e"/>
+      <stop offset="100%" style="stop-color:#16213e"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4285f4"/>
+      <stop offset="100%" style="stop-color:#34a853"/>
+    </linearGradient>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="0" stdDeviation="3" flood-color="#4285f4" flood-opacity="0.4"/>
+    </filter>
+  </defs>
+
+  <!-- Background circle -->
+  <circle cx="100" cy="100" r="96" fill="url(#bg)" stroke="#4285f4" stroke-width="1.5" opacity="0.9"/>
+
+  <!-- Outer orbit ring -->
+  <circle cx="100" cy="100" r="72" fill="none" stroke="#4285f4" stroke-width="0.8" stroke-dasharray="4 3" opacity="0.35"/>
+
+  <!-- G cloud shape — stylised G letterform -->
+  <path d="M100 44
+            C72 44 52 64 52 92
+            C52 120 72 140 100 140
+            C122 140 138 128 144 112
+            L144 96 L100 96 L100 108 L130 108
+            C126 120 114 128 100 128
+            C79 128 64 113 64 92
+            C64 71 79 56 100 56
+            C112 56 122 62 129 71 L139 63
+            C130 52 116 44 100 44 Z"
+        fill="url(#glow)" filter="url(#shadow)" opacity="0.95"/>
+
+  <!-- Code brackets -->
+  <text x="56" y="168" font-family="monospace" font-size="18" font-weight="700"
+        fill="#4285f4" opacity="0.7">&lt;/&gt;</text>
+
+  <!-- Dot accent — MCP node -->
+  <circle cx="148" cy="60" r="7" fill="#34a853" filter="url(#shadow)"/>
+  <circle cx="148" cy="60" r="3.5" fill="#ffffff" opacity="0.9"/>
+
+  <!-- Connector line from G to dot -->
+  <line x1="139" y1="63" x2="144" y2="60" stroke="#34a853" stroke-width="1.5" opacity="0.6"/>
+</svg>
