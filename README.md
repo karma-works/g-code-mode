@@ -55,7 +55,7 @@ Every mutating call goes through a **five-layer safety stack**:
 | Retry with state tracking | ✓ | — | — | — | — |
 | Transactional rollback | ✓ | — | — | — | — |
 | Vertex AI Agent Engine | ✓ | — | — | — | — |
-| Cloud Run | planned | — | ✓ | ✓ | — |
+| Cloud Run | ✓ | — | ✓ | ✓ | — |
 | Firestore | planned | — | — | ✓ | — |
 | License | Apache-2.0 | Apache-2.0 | Apache-2.0 | closed | MIT |
 
@@ -72,7 +72,7 @@ Every mutating call goes through a **five-layer safety stack**:
 | Service | Status | Operations |
 |---|---|---|
 | **Vertex AI Agent Engine** | **v0.1** | list, get, deploy (with undo), delete (with snapshot), query |
-| Cloud Run | planned | deploy, list, traffic split, rollback |
+| **Cloud Run** | **v0.2** | list, get, list revisions, deploy revision (with undo), set traffic, rollback, logs |
 | Firestore | planned | collections, documents, indexes |
 
 ## Installation

@@ -24,15 +24,26 @@ _state = StateManager()
 
 def _build_namespace() -> dict:
     """Collect all registered adapter callables into the exec namespace."""
+    from g_code_mode.adapters.cloud_run.service import CloudRunAdapter
     from g_code_mode.adapters.vertex_ai.agent_engine import AgentEngineAdapter
 
-    adapter = AgentEngineAdapter(state=_state)
+    vertex = AgentEngineAdapter(state=_state)
+    cloud_run = CloudRunAdapter(state=_state)
     return {
-        "list_agent_engines": adapter.list_agent_engines,
-        "get_agent_engine": adapter.get_agent_engine,
-        "deploy_agent_engine": adapter.deploy_agent_engine,
-        "delete_agent_engine": adapter.delete_agent_engine,
-        "query_agent_engine": adapter.query_agent_engine,
+        # Vertex AI Agent Engine
+        "list_agent_engines": vertex.list_agent_engines,
+        "get_agent_engine": vertex.get_agent_engine,
+        "deploy_agent_engine": vertex.deploy_agent_engine,
+        "delete_agent_engine": vertex.delete_agent_engine,
+        "query_agent_engine": vertex.query_agent_engine,
+        # Cloud Run
+        "list_services": cloud_run.list_services,
+        "get_service": cloud_run.get_service,
+        "list_revisions": cloud_run.list_revisions,
+        "get_service_logs": cloud_run.get_service_logs,
+        "deploy_revision": cloud_run.deploy_revision,
+        "set_traffic": cloud_run.set_traffic,
+        "rollback_revision": cloud_run.rollback_revision,
     }
 
 
@@ -64,12 +75,69 @@ The following adapter functions are available in the function's scope:
 - `query_agent_engine(resource_name: str, message: str) -> dict`
   Send a test message to an Agent Engine. Useful as a smoke test after deploy.
 
+## Cloud Run
+
+### Read-only (inquire)
+- `list_services(project: str, region: str) -> list[dict]`
+  List Cloud Run services. Returns name, region, url, traffic, latest_revision, ready.
+
+- `get_service(project: str, region: str, service_id: str) -> dict`
+  Full service detail: image, env_var_keys (secret values never exposed), traffic splits,
+  scaling, ingress, service_account, latest_revision, ready.
+
+- `list_revisions(project: str, region: str, service_id: str) -> list[dict]`
+  List revisions newest-first. Returns name, image, create_time, ready.
+
+- `get_service_logs(project: str, region: str, service_id: str, limit: int = 50) -> list[dict]`
+  Recent log entries via Cloud Logging. Returns timestamp, severity, message.
+
+### Mutating (execute) — returns dict with undo_recipe
+- `deploy_revision(project, region, service_id, image, env_vars, min_instances, max_instances, cpu_throttling, traffic_pct, ingress) -> dict`
+  Deploy a new revision. Validates ADC, confirms service exists, warns on secret env vars,
+  warns on background-thread risk. Returns new_revision, url, undo_recipe, warnings.
+
+- `set_traffic(project: str, region: str, service_id: str, splits: dict[str, int]) -> dict`
+  Update traffic splits without a new revision. splits must sum to 100.
+  Example: splits={"LATEST": 90, "my-service-00041-abc": 10}
+  Returns undo_recipe to restore prior splits.
+
+- `rollback_revision(project: str, region: str, service_id: str, revision_name: str) -> dict`
+  Route 100% traffic to a named prior revision. Returns undo_recipe to restore.
+
 ## Rules
 - Never pass credentials into the script — ADC is used automatically.
 - Always `return` the final result from `run()`.
 - After a mutating operation, surface the `undo_recipe` to the user.
 
-## Example — discover then query
+## Example — list Cloud Run services and check traffic
+```python
+async def run():
+    services = await list_services(project="my-project", region="europe-west1")
+    if not services:
+        return "No services found — check the region"
+    svc = await get_service(
+        project="my-project", region="europe-west1", service_id=services[0]["name"]
+    )
+    return svc
+```
+
+## Example — deploy revision with canary split
+```python
+async def run():
+    result = await deploy_revision(
+        project="my-project",
+        region="europe-west1",
+        service_id="my-service",
+        image="europe-west1-docker.pkg.dev/my-project/repo/app:sha-abc",
+        env_vars={"GCP_PROJECT_ID": "my-project"},
+        min_instances=1,
+        cpu_throttling=False,
+        traffic_pct=10,  # 10% to new revision, 90% stays on current
+    )
+    return result  # always show result["undo_recipe"] to the user
+```
+
+## Example — discover Agent Engine then query
 ```python
 async def run():
     engines = await list_agent_engines(project="my-project", location="us-central1")
@@ -79,7 +147,7 @@ async def run():
     return await query_agent_engine(rn, "hello")
 ```
 
-## Example — deploy
+## Example — deploy Agent Engine
 ```python
 async def run():
     result = await deploy_agent_engine(
