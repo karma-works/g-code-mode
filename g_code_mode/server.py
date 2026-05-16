@@ -25,10 +25,12 @@ _state = StateManager()
 def _build_namespace() -> dict:
     """Collect all registered adapter callables into the exec namespace."""
     from g_code_mode.adapters.cloud_run.service import CloudRunAdapter
+    from g_code_mode.adapters.firestore.service import FirestoreAdapter
     from g_code_mode.adapters.vertex_ai.agent_engine import AgentEngineAdapter
 
     vertex = AgentEngineAdapter(state=_state)
     cloud_run = CloudRunAdapter(state=_state)
+    firestore = FirestoreAdapter(state=_state)
     return {
         # Vertex AI Agent Engine
         "list_agent_engines": vertex.list_agent_engines,
@@ -44,6 +46,15 @@ def _build_namespace() -> dict:
         "deploy_revision": cloud_run.deploy_revision,
         "set_traffic": cloud_run.set_traffic,
         "rollback_revision": cloud_run.rollback_revision,
+        # Firestore
+        "list_collections": firestore.list_collections,
+        "list_documents": firestore.list_documents,
+        "get_document": firestore.get_document,
+        "query_documents": firestore.query_documents,
+        "list_subcollections": firestore.list_subcollections,
+        "set_document": firestore.set_document,
+        "update_document": firestore.update_document,
+        "delete_document": firestore.delete_document,
     }
 
 
@@ -104,10 +115,69 @@ The following adapter functions are available in the function's scope:
 - `rollback_revision(project: str, region: str, service_id: str, revision_name: str) -> dict`
   Route 100% traffic to a named prior revision. Returns undo_recipe to restore.
 
+## Firestore
+
+### Read-only (inquire)
+- `list_collections(project: str, database: str = "(default)") -> list[str]`
+  List root-level collection IDs. Subcollections (e.g. runs/{id}/events) are NOT returned —
+  use list_subcollections for those.
+
+- `list_documents(project, database, collection, limit=50, fields=None) -> list[dict]`
+  Stream documents from a collection with optional field filtering. collection can be a
+  subcollection path like "runs/abc123/events". Each result includes "_id".
+
+- `get_document(project, database, collection, document_id) -> dict | None`
+  Get a single document. Returns None if not found.
+
+- `query_documents(project, database, collection, filters, order_by, limit=50) -> list[dict]`
+  Query with filters: list of (field, operator, value) tuples.
+  Operators: "==", "!=", "<", "<=", ">", ">=", "in", "array_contains"
+  Example: filters=[("status", "==", "completed"), ("created_at", ">", "2026-01-01")]
+
+- `list_subcollections(project, database, collection, document_id) -> list[str]`
+  List subcollection IDs under a document.
+  Example: list_subcollections(..., "runs", "abc123") → ["events", "sources"]
+
+### Mutating (execute) — returns dict with undo_recipe
+- `set_document(project, database, collection, document_id, data) -> dict`
+  Create or replace a document. Snapshots prior state.
+  Undo: set_document(prior_data) if existed; delete_document if new.
+
+- `update_document(project, database, collection, document_id, updates) -> dict`
+  Partial update of an existing document. Fails if document doesn't exist — use set_document.
+  Undo: set_document(full_snapshot) to restore all fields.
+
+- `delete_document(project, database, collection, document_id) -> dict`
+  Delete a document. Snapshots before deletion.
+  Undo: set_document(snapshot) to recreate.
+
 ## Rules
 - Never pass credentials into the script — ADC is used automatically.
 - Always `return` the final result from `run()`.
 - After a mutating operation, surface the `undo_recipe` to the user.
+
+## Example — inspect a GapHunter run and its events from Firestore
+```python
+async def run():
+    # Get a specific run document
+    doc = await get_document(
+        project="my-project", database="(default)",
+        collection="runs", document_id="abc123"
+    )
+    if not doc:
+        return "Run not found"
+    # List its subcollections (e.g. events, sources)
+    subcols = await list_subcollections(
+        project="my-project", database="(default)",
+        collection="runs", document_id="abc123"
+    )
+    # Read events subcollection
+    events = await list_documents(
+        project="my-project", database="(default)",
+        collection="runs/abc123/events", limit=20
+    )
+    return {"run": doc, "subcollections": subcols, "events": events}
+```
 
 ## Example — list Cloud Run services and check traffic
 ```python

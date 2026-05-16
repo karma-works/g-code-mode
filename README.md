@@ -56,7 +56,7 @@ Every mutating call goes through a **five-layer safety stack**:
 | Transactional rollback | ✓ | — | — | — | — |
 | Vertex AI Agent Engine | ✓ | — | — | — | — |
 | Cloud Run | ✓ | — | ✓ | ✓ | — |
-| Firestore | planned | — | — | ✓ | — |
+| Firestore | ✓ | — | — | ✓ | — |
 | License | Apache-2.0 | Apache-2.0 | Apache-2.0 | closed | MIT |
 
 ### Why not just use the existing tools?
@@ -73,7 +73,7 @@ Every mutating call goes through a **five-layer safety stack**:
 |---|---|---|
 | **Vertex AI Agent Engine** | **v0.1** | list, get, deploy (with undo), delete (with snapshot), query |
 | **Cloud Run** | **v0.2** | list, get, list revisions, deploy revision (with undo), set traffic, rollback, logs |
-| Firestore | planned | collections, documents, indexes |
+| **Firestore** | **v0.3** | list collections, list/get/query documents, subcollections, set/update/delete (with undo) |
 
 ## Installation
 
