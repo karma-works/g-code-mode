@@ -1,0 +1,1 @@
+"""Cloud Storage (GCS) adapter."""

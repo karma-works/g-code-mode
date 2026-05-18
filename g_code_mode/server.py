@@ -26,11 +26,13 @@ def _build_namespace() -> dict:
     """Collect all registered adapter callables into the exec namespace."""
     from g_code_mode.adapters.cloud_run.service import CloudRunAdapter
     from g_code_mode.adapters.firestore.service import FirestoreAdapter
+    from g_code_mode.adapters.gcs.service import GCSAdapter
     from g_code_mode.adapters.vertex_ai.agent_engine import AgentEngineAdapter
 
     vertex = AgentEngineAdapter(state=_state)
     cloud_run = CloudRunAdapter(state=_state)
     firestore = FirestoreAdapter(state=_state)
+    gcs = GCSAdapter(state=_state)
     return {
         # Vertex AI Agent Engine
         "list_agent_engines": vertex.list_agent_engines,
@@ -55,6 +57,19 @@ def _build_namespace() -> dict:
         "set_document": firestore.set_document,
         "update_document": firestore.update_document,
         "delete_document": firestore.delete_document,
+        # Cloud Storage (GCS)
+        "list_buckets": gcs.list_buckets,
+        "get_bucket": gcs.get_bucket,
+        "list_objects": gcs.list_objects,
+        "get_object_metadata": gcs.get_object_metadata,
+        "get_bucket_iam": gcs.get_bucket_iam,
+        "upload_object": gcs.upload_object,
+        "delete_object": gcs.delete_object,
+        "copy_object": gcs.copy_object,
+        "set_bucket_iam": gcs.set_bucket_iam,
+        "set_lifecycle_policy": gcs.set_lifecycle_policy,
+        "enable_versioning": gcs.enable_versioning,
+        "set_uniform_bucket_access": gcs.set_uniform_bucket_access,
     }
 
 
@@ -151,6 +166,61 @@ The following adapter functions are available in the function's scope:
   Delete a document. Snapshots before deletion.
   Undo: set_document(snapshot) to recreate.
 
+## Cloud Storage (GCS)
+
+### Read-only (inquire)
+- `list_buckets(project: str) -> list[dict]`
+  List all buckets. Returns name, location, storage_class, versioning_enabled,
+  has_retention_policy, retention_policy_locked, autoclass_enabled.
+
+- `get_bucket(project: str, bucket_name: str) -> dict`
+  Full bucket config: IAM summary, lifecycle rules, versioning, retention policy (locked/unlocked),
+  soft delete, CORS, labels, location_type.
+
+- `list_objects(project: str, bucket_name: str, prefix: str = "", max_results: int = 100) -> list[dict]`
+  List objects under prefix. Returns name, size_bytes, content_type, updated, storage_class, generation.
+  Truncates at max_results with a note.
+
+- `get_object_metadata(project: str, bucket_name: str, object_path: str) -> dict | None`
+  Full object metadata including generation, md5_hash. Returns None if not found.
+
+- `get_bucket_iam(project: str, bucket_name: str) -> dict`
+  IAM bindings for the bucket. Tags allUsers/allAuthenticatedUsers with public=True.
+  Returns bindings list and has_public_access boolean.
+
+### Mutating (execute) — returns dict with undo_recipe and warnings
+- `upload_object(project, bucket_name, object_path, content, content_type, if_not_exists=False) -> dict`
+  Upload string or bytes content. Warns if overwriting an existing object.
+  if_not_exists=True raises if object already exists (precondition guard).
+  Warns on Coldline/Archive retrieval fees. Returns undo_recipe, new_generation, warnings.
+  IMPORTANT: Do NOT use for large files — content is passed in memory.
+
+- `delete_object(project: str, bucket_name: str, object_path: str, generation: int | None = None) -> dict`
+  Delete an object or a specific generation. Warns PERMANENT if no versioning and no soft delete.
+  Returns undo_recipe with restore instructions where possible.
+
+- `copy_object(project, src_bucket, src_path, dst_bucket, dst_path, if_not_exists=True) -> dict`
+  Copy object. Default if_not_exists=True prevents silent overwrite of destination.
+  Returns undo_recipe to delete the copy.
+
+- `set_bucket_iam(project, bucket_name, bindings, allow_public_access=False) -> dict`
+  Replace all IAM bindings. BLOCKS allUsers/allAuthenticatedUsers unless allow_public_access=True.
+  Example: bindings=[{"role": "roles/storage.objectViewer", "members": ["user:x@y.com"]}]
+  Returns undo_recipe to restore prior bindings.
+
+- `set_lifecycle_policy(project: str, bucket_name: str, rules: list[dict]) -> dict`
+  Set lifecycle rules (full replacement). Warns on 24h propagation lag.
+  Example rule: {"action": {"type": "Delete"}, "condition": {"age": 90}}
+  Returns undo_recipe with prior rules.
+
+- `enable_versioning(project: str, bucket_name: str, add_noncurrent_expiry: bool = True, noncurrent_expiry_days: int = 30) -> dict`
+  Enable object versioning. By default adds a 30-day noncurrent version expiry lifecycle rule
+  to prevent unbounded cost growth. Pass add_noncurrent_expiry=False to suppress.
+
+- `set_uniform_bucket_access(project: str, bucket_name: str, enabled: bool) -> dict`
+  Enable or disable uniform bucket-level access. Warns on ACL breakage. Blocks disable if
+  the setting has been locked (>90 consecutive days of enablement). Returns undo_recipe.
+
 ## Rules
 - Never pass credentials into the script — ADC is used automatically.
 - Always `return` the final result from `run()`.
@@ -205,6 +275,36 @@ async def run():
         traffic_pct=10,  # 10% to new revision, 90% stays on current
     )
     return result  # always show result["undo_recipe"] to the user
+```
+
+## Example — inspect a bucket and upload a config file safely
+```python
+async def run():
+    # Check bucket config before touching anything
+    info = await get_bucket(project="my-project", bucket_name="my-app-assets")
+    if info["retention_policy_locked"]:
+        return f"Bucket is retention-locked — uploads may be blocked."
+    # Upload only if the object doesn't already exist
+    result = await upload_object(
+        project="my-project",
+        bucket_name="my-app-assets",
+        object_path="config/settings.json",
+        content='{"env": "prod"}',
+        content_type="application/json",
+        if_not_exists=True,  # raise if it already exists
+    )
+    return result  # always show result["undo_recipe"] to the user
+```
+
+## Example — enable versioning safely with cost guard
+```python
+async def run():
+    # enable_versioning adds a 30-day noncurrent expiry rule by default (Trap GCS-9)
+    result = await enable_versioning(
+        project="my-project",
+        bucket_name="my-app-assets",
+    )
+    return result  # includes undo_recipe and warnings
 ```
 
 ## Example — discover Agent Engine then query

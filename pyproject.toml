@@ -16,6 +16,7 @@ dependencies = [
   "mcp>=1.0.0",
   "google-cloud-aiplatform[agent_engines]>=1.112.0",
   "google-cloud-run>=0.10.0",
+  "google-cloud-storage>=2.0.0",
   "google-cloud-firestore>=2.0.0",
   "google-cloud-logging>=3.0.0",
   "google-cloud-resource-manager>=1.0.0",
