@@ -143,6 +143,7 @@ After install, Claude Code picks up the skills automatically. You can also invok
 ```
 /g-code-mode        # general Google Cloud operations
 /gcloud-execute     # explicit mutation with full safety stack
+/report             # report a gap or missing capability
 ```
 
 ## Usage
@@ -156,6 +157,33 @@ Once the MCP server is running and your client is configured, use natural langua
 > "What Agent Engines are running and what are their resource names?"
 
 The `code` tool is called automatically. For mutations, you'll see an `undo_recipe` in the response — keep it to hand.
+
+## Reporting gaps
+
+When you hit something g-code-mode doesn't handle — a missing operation, an unhelpful error, a GCP behaviour the adapters don't warn about — invoke the `/report` skill:
+
+```
+/report
+```
+
+The skill walks you through four questions, checks for duplicate issues, reminds you to strip PII, then files a structured GitHub issue with your approval. The report includes the g-code-mode version, timestamp, and LLM model so reports are triageable by release.
+
+You can also call the `report_gap` MCP tool directly from a `code` script:
+
+```python
+async def run():
+    # Always submit=False first — dry run shows the formatted issue and duplicates
+    preview = await report_gap(
+        operation_attempted="Deploy Cloud Run revision with a custom service account",
+        gap_description="deploy_revision has no service_account parameter",
+        workaround_used="gcloud run deploy --service-account=...",
+        suggestion="Add service_account parameter, default to preserving existing",
+        severity="medium",
+        llm_model="claude-sonnet-4-6",
+        submit=False,
+    )
+    return preview  # show to user for review before calling with submit=True
+```
 
 ## Configuration
 

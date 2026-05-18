@@ -273,6 +273,67 @@ async def list_in_flight_operations() -> str:
     return json.dumps(ops, indent=2, default=str)
 
 
+_REPORT_GAP_DESCRIPTION = """\
+Report a new gap or missing capability in g-code-mode.
+
+Use this when you hit something the tool doesn't handle well:
+- A GCP operation with no adapter support
+- An error message that wasn't helpful
+- A GCP behaviour the adapters don't warn about
+- Anything you had to work around using raw gcloud or the API directly
+
+## Workflow — always two calls
+
+**Call 1 (dry run):** submit=False
+Returns the formatted issue body, duplicate candidates, and a privacy reminder.
+Show all of this to the user before proceeding.
+
+**Call 2 (submit):** submit=True
+Only after the user has explicitly approved the content AND confirmed no PII remains.
+
+## Parameters
+
+- operation_attempted: The GCP task you were trying to do
+- gap_description: What g-code-mode was missing or got wrong (be specific)
+- workaround_used: What you did instead; empty string if completely blocked
+- suggestion: What would fix it; empty string if unknown
+- severity: "low" (friction but workable) | "medium" (significant workaround) | "high" (blocked)
+- llm_model: Your model name, e.g. "claude-sonnet-4-6"
+- submit: False = preview + duplicate check; True = create GitHub issue
+
+## Rules
+
+- One gap per call. File separately if there are multiple issues.
+- Never call with submit=True without explicit user approval.
+- If duplicate_candidates are returned, ask the user to review them first.
+"""
+
+
+@mcp.tool(description=_REPORT_GAP_DESCRIPTION)
+async def report_gap(
+    operation_attempted: str,
+    gap_description: str,
+    workaround_used: str = "",
+    suggestion: str = "",
+    severity: str = "medium",
+    llm_model: str = "",
+    submit: bool = False,
+) -> str:
+    """Report a new gap or missing capability in g-code-mode to the GitHub issue tracker."""
+    from g_code_mode.reporting import report_gap as _report_gap
+
+    result = _report_gap(
+        operation_attempted=operation_attempted,
+        gap_description=gap_description,
+        workaround_used=workaround_used,
+        suggestion=suggestion,
+        severity=severity,
+        llm_model=llm_model,
+        submit=submit,
+    )
+    return json.dumps(result, indent=2)
+
+
 def main() -> None:
     logging.basicConfig(level=logging.WARNING)
     mcp.run()

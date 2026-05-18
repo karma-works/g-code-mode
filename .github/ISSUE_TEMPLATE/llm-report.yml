@@ -1,0 +1,94 @@
+name: LLM Gap Report
+description: Report a gap or missing capability discovered by an LLM assistant using g-code-mode
+title: "[gap] "
+labels:
+  - llm-report
+  - gap
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Before submitting:** Remove project IDs, resource names, service account emails,
+        and API keys from all fields. Replace with placeholders like `my-project`.
+
+        This template is for gaps discovered by LLM assistants using g-code-mode.
+        For bugs found by humans, use a regular bug report instead.
+
+  - type: input
+    id: operation
+    attributes:
+      label: Operation Attempted
+      description: The GCP task you were trying to perform
+      placeholder: "Deploy a Cloud Run revision with a custom service account"
+    validations:
+      required: true
+
+  - type: textarea
+    id: gap
+    attributes:
+      label: Gap / Missing Capability
+      description: What was missing or wrong in g-code-mode (not what GCP did wrong)
+      placeholder: "deploy_revision has no service_account parameter. I needed to set a non-default service account for the revision but there was no way to do it through the adapter."
+    validations:
+      required: true
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Workaround Used
+      description: What you did instead; leave blank if completely blocked
+      placeholder: "Fell back to: gcloud run deploy my-service --service-account=sa@my-project.iam.gserviceaccount.com"
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggestion
+      description: What would fix this gap
+      placeholder: "Add a service_account parameter to deploy_revision. Default to preserving the existing service account (like ingress handling)."
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - low — friction but workable
+        - medium — significant workaround needed
+        - high — completely blocked
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: g-code-mode version
+      placeholder: "0.3.0"
+    validations:
+      required: true
+
+  - type: input
+    id: model
+    attributes:
+      label: LLM Model
+      placeholder: "claude-sonnet-4-6"
+
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy Checklist
+      options:
+        - label: Project IDs removed or replaced with `my-project`
+          required: true
+        - label: Resource names removed or anonymized
+          required: true
+        - label: Service account emails removed
+          required: true
+        - label: No API keys, tokens, or credentials included
+          required: true
+
+  - type: checkboxes
+    id: duplicate
+    attributes:
+      label: Duplicate Check
+      options:
+        - label: I searched existing issues and this is not a duplicate
+          required: true
